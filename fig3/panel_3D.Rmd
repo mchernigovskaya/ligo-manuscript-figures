@@ -1,0 +1,62 @@
+---
+title: "Fig 3: pgen increase after implantation"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F)
+
+library(readr)
+library(ggplot2)
+library(ggridges)
+library(RColorBrewer)
+library(dplyr)
+
+colors <- c("#f0a58f", "#eb548c", "#7d3ac1", "#29066b")
+```
+
+```{r}
+
+kmer_range <- 2:5
+
+get_dataset <- function(path, fname, method=NA) {
+  df <- data.frame()
+
+  for (i in kmer_range) {
+    kmer <- paste0("k", i)
+    df_kmer <- read_tsv(file.path(path,  kmer, fname))
+    df_kmer$kmer <- i 
+    df <- rbind(df, df_kmer)
+  }
+  if (!is.na(method)) 
+    df$method <- method
+  df
+}
+
+df <- rbind(get_dataset("/doctorai/mariiac/C_impl_decreases_pgen/data", "ligo_output/Implanting/exported_dataset/airr/batch1.tsv", "impl_restricted"), 
+      get_dataset("/doctorai/mariiac/E_importance_sampling/data_fast/", "ligo_output/IS/exported_dataset/airr/batch1.tsv", "importance"))
+
+```
+
+```{r}
+# get shift 
+
+df <- df[df$p_gen > 0, ]
+df$pgen_shift <- log10(df$original_p_gen) - log10(df$p_gen)
+```
+
+```{r}
+ggplot(df[df$pgen_shift < 25,], aes(x=kmer, y = pgen_shift, fill = as.factor(kmer))) + 
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(size = 0.1, alpha = 0.5)+
+  facet_grid(.~method) +
+  scale_fill_manual(values=colors) +
+  theme_minimal()
+
+ggsave(filename = file.path("/doctorai/mariiac/C_impl_decreases_pgen/pgen_shift_I_vs_IIS.png"), width = 6, height = 3.5, device='png', dpi=700)
+```
+
+```{r}
+df %>% dplyr::group_by(kmer, method) %>% 
+  dplyr::summarise(med = median(pgen_shift))
+```
