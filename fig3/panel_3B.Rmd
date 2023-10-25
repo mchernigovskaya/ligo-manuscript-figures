@@ -1,1 +1,116 @@
+---
+title: "Fig 3: 3-mer occurance distribution IGH"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(Peptides)
+library(tibble)
+library(ComplexHeatmap)
+library(Rmisc)
+library(stringr)
+```
+
+```{r}
+colors = c('#000000', '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#9A6324', '#dcbeff')
+names(colors) <- 1:10
+
+path <- "/doctorai/mariiac/B_kmer_pattern_IGH"
+counts <- read_csv(file.path(path, "count_1mln/my_instruction/analysis_my_analysis_1/report/design_matrix.csv"))
+
+```
+
+```{r}
+all_2mers <- as.vector(outer(aaList(), aaList(), paste0))
+all_3mers <- as.vector(outer(all_2mers, aaList(), paste0))
+```
+
+```{r}
+# get counts for each k-mer
+
+df <- data.frame(kmer = all_3mers)
+df[as.character(c(105:115))] <- NA
+
+for (i in 1:ncol(counts)) {
+  kmer_pos <- colnames(counts)[i]
+  kmer <- unlist(str_split(kmer_pos, "-"))[1]
+  pos <- unlist(str_split(kmer_pos, "-"))[2]
+  df[df$kmer == kmer, pos] <- counts[1, i]
+}
+
+df[is.na(df)] <- 0
+
+df$sum <- rowSums(df[, -1])
+df <- df[df$sum > 10,]
+
+# normalization
+df_norm <- df
+df_norm[, -c(1, ncol(df))] <- df_norm[, -c(1, ncol(df))] / df_norm$sum
+rownames(df_norm) <- df_norm$kmer
+
+#write_tsv(df_norm, file.path(path, "normalised_counts.tsv"))
+```
+
+```{r}
+df_norm <- data.frame(read_tsv(file.path(path, "normalised_counts.tsv")), check.names = F)
+rownames(df_norm) <- df_norm$kmer
+```
+
+```{r}
+# clustering
+
+kmer_dist <- dist(df_norm[, -c(1, ncol(df_norm))])
+kmer_cluster <- cutree(hclust(kmer_dist, method = "complete"), k = 10) %>% 
+   enframe() 
+
+colnames(kmer_cluster) <- c("kmer", "cluster")
+df_norm <- merge(df_norm, data.frame(kmer_cluster), by="kmer")
+```
+
+# Heatmap
+```{r}
+ha = rowAnnotation(cluster = as.factor(df_norm$cluster), 
+                    col = list(cluster = colors))
+
+png(file=file.path(path, "heatmap.png"), width=6,height=4, units="in", res=700)
+ht <- Heatmap(df_norm[, 2:12], show_row_names = FALSE, cluster_columns = F, 
+         left_annotation = ha)
+
+draw(ht)
+dev.off()
+```
+
+# Cluster pattern
+```{r}
+
+sum <- summarySE(melt(df_norm[, -13], id = c("kmer", "cluster")), 
+                 measurevar="value", groupvars=c("cluster", "variable"))
+
+ggplot(sum, aes(x=variable, y=value, group = cluster, colour=factor(cluster))) + 
+     geom_errorbar(aes(ymin=value-ci, ymax=value+ci), width=0.1, size=0.7) +
+     geom_line(size=1) +
+     geom_point() +
+     scale_colour_manual(values = colors) +
+     theme_minimal()
+ 
+ggsave(filename = file.path(path, "pattern.png"), width = 6, height = 3, device='png', dpi=700)
+
+```
+
+# Cluster size distribution
+```{r}
+cluster_size <- data.frame(table(df_norm$cluster))
+colnames(cluster_size) <- c("cluster", "size")
+cluster_size$perc <- (cluster_size$size/8000) * 100
+
+ggplot(cluster_size, aes(x = cluster, y = perc, fill = factor(cluster), label=perc)) + 
+  geom_col() +
+  scale_fill_manual(values = colors) +
+  geom_text(aes(label = paste(format(perc, digits=2), "%")), vjust = -0.4) +
+  theme_minimal()
+
+ggsave(filename = file.path(path, "size_distr.png"), width = 6, height = 4, device='png', dpi=700)
+```
 
