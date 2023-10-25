@@ -1,0 +1,60 @@
+---
+title: "Fig 3: importance sampling improves implantation pgen distribution"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(ggplot2)
+library(RColorBrewer)
+library(readr)
+library(dplyr)
+
+kmer_range <- 2:5
+colors <- c("#f0a58f", "#eb548c", "#7d3ac1", "#29066b", "#9CC8C6")
+```
+
+```{r}
+get_dataset <- function(path, fname, method=NA) {
+  df <- data.frame()
+
+  for (i in kmer_range) {
+    kmer <- paste0("k", i)
+    df_kmer <- read_tsv(file.path(path,  kmer, fname))
+    df_kmer$kmer <- i 
+    df <- rbind(df, df_kmer)
+  }
+  if (!is.na(method)) 
+    df$method <- method
+  df
+}
+
+df <- rbind(get_dataset("/doctorai/mariiac/C_impl_decreases_pgen/data", "ligo_output/Implanting/exported_dataset/airr/batch1.tsv", "impl_restricted")[, c("method", "p_gen", "kmer")],
+      get_dataset("/doctorai/mariiac/D_RS_vs_SI_pgen/data", "ligo_output/RejectionSampling/exported_dataset/airr/batch1.tsv", "rejection")[, c("method", "p_gen", "kmer")], 
+      get_dataset("/doctorai/mariiac/E_importance_sampling/data_fast/", "ligo_output/IS/exported_dataset/airr/batch1.tsv", "importance")[, c("method", "p_gen", "kmer")])
+
+```
+
+```{r}
+df_background <- read_tsv("/doctorai/mariiac/D_RS_vs_SI_pgen/data_background/my_sim_inst/exported_dataset/airr/batch1.tsv")
+```
+
+```{r, fig.width=10}
+
+ggplot(df, aes(x = log10(p_gen), color = as.factor(kmer))) + 
+  stat_ecdf(data = df_background, aes(x = log10(p_gen)), size=1) +
+  stat_ecdf(data = df[df$method == "rejection", ], aes(x = log10(p_gen)), size=1.25, linetype = "dotted") +
+  stat_ecdf(data = df[df$method == "impl_restricted", ], aes(x = log10(p_gen)), size=1, linetype = "longdash") +
+  stat_ecdf(data = df[df$method == "importance", ], aes(x = log10(p_gen)), size=1, linetype = "solid") +
+  facet_grid(.~kmer)+
+  scale_color_manual(values=colors) +
+  theme_minimal()
+
+ggsave(filename = file.path("/doctorai/mariiac/D_RS_vs_SI_pgen/RS_vs_SI_vs_IS.png"), width = 12, height = 4, device='png', dpi=700)
+```
+
+```{r}
+df %>% dplyr::group_by(kmer, method) %>% 
+  dplyr::summarise(med = median(p_gen))
+```
+
