@@ -1,0 +1,64 @@
+---
+title: "Fig 5: use case 2"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, fig.width=6, fig.height=3)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(reshape2)
+```
+
+```{r}
+df1 <- read_tsv("/storage/mariiac/ligo_paper_figures/usecase3/signal_distribution_rawdata_0.01%.tsv")
+df1$rate <- "0.01%"
+df2 <- read_tsv("/storage/mariiac/ligo_paper_figures/usecase3/signal_distribution_rawdata_0.1%.tsv")
+df2$rate <- "0.1%"
+
+df <- rbind(df1, df2)
+
+ggplot(df, aes(y=value, x = sim_item, fill = variable)) +
+  facet_grid(~rate)+
+  geom_boxplot(outlier.shape = NA, alpha = 0.4) +
+  geom_point(position=position_jitterdodge(jitter.width = 0.2,
+                                             dodge.width = 0.7)) +
+  scale_y_continuous(trans='log10') + 
+  scale_fill_manual(values=c("#008D36", "#1D71B8")) +
+  theme_classic()+
+  theme(text = element_text(size = 20), legend.key.size = unit(1, 'cm')) 
+
+```
+
+```{r}
+df_median <- df %>% group_by(sim_item, variable, rate) %>%
+  summarise(median = round(median(value), 8))
+```
+
+
+# performance
+
+```{r}
+df <- read_tsv("/storage/mariiac/ligo_paper_figures/usecase3/method_perf_concatenated.tsv")
+
+ggplot(df, aes(x = factor(method), y=performance, fill = factor(method))) +
+  facet_grid(~witness_rate)+
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(position=position_jitterdodge(jitter.width = 0.7,
+                                             dodge.width = 0.7)) +
+  scale_y_continuous(trans='log10') + 
+  scale_fill_manual(values=c("white", "black")) +
+  theme_classic()+
+  theme(text = element_text(size = 15), legend.key.size = unit(1, 'cm')) 
+
+```
+
+```{r}
+df_median <- df %>% group_by(method, witness_rate) %>%
+  summarise(median = round(median(performance), 2))
+```
+
