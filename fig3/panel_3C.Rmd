@@ -1,0 +1,55 @@
+---
+title: "Fig 3: percentage of AIRs with zero pgen"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F)
+
+library(readr)
+library(ggplot2)
+library(ggridges)
+library(dplyr)
+
+kmer_range <- 2:5
+colors = c("#f0a58f", "#eb548c", "#7d3ac1", "#29066b", "#9CC8C6")
+```
+
+```{r}
+get_dataset <- function(path, fname, method=NA) {
+  df <- data.frame()
+
+  for (i in kmer_range) {
+    kmer <- paste0("k", i)
+    df_kmer <- read_tsv(file.path(path,  kmer, fname))
+    df_kmer$kmer <- i 
+    df <- rbind(df, df_kmer)
+  }
+  if (!is.na(method)) 
+    df$method <- method
+  df
+}
+
+df <- rbind(get_dataset("/doctorai/mariiac/C_impl_decreases_pgen/data", "ligo_output/Implanting/exported_dataset/airr/batch1.tsv", "impl_restricted")[, c("method", "p_gen", "kmer")], 
+      get_dataset("/doctorai/mariiac/C_impl_decreases_pgen/data_any_position", "ligo_output/Implanting/exported_dataset/airr/batch1.tsv", "impl_any_position")[, c("method", "p_gen", "kmer")], 
+      get_dataset("/doctorai/mariiac/D_RS_vs_SI_pgen/data", "ligo_output/RejectionSampling/exported_dataset/airr/batch1.tsv", "rejection")[, c("method", "p_gen", "kmer")], 
+      get_dataset("/doctorai/mariiac/E_importance_sampling/data_fast/", "ligo_output/IS/exported_dataset/airr/batch1.tsv", "importance")[, c("method", "p_gen", "kmer")])
+```
+
+```{r}
+# get percentages 
+res <- df %>% group_by(method, kmer) %>%
+  dplyr::summarise(perc_zero = sum(p_gen == 0)/n() *100)
+```
+
+```{r}
+ggplot(res, aes(x = kmer, y = perc_zero, fill = as.factor(kmer))) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf('%s%%', perc_zero)), size = 3, nudge_y = .5) +
+  facet_grid(.~method) +
+  scale_fill_manual(values=colors) +
+  theme_minimal()
+  
+ggsave(filename = file.path("/doctorai/mariiac/D_RS_vs_SI_pgen/zero_pgen.png"), width = 8, height = 6, device='png', dpi=700)
+```
+
